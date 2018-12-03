@@ -16,3 +16,5 @@ Documentation du driver neo4j :
 * https://github.com/neo4j/neo4j-java-driver
 
 ![erreur](https://raw.githubusercontent.com/Wiiz83/TPMongoDBNeo4J/master/Images/erreur-mongodb-datadirectory.PNG?token=AKc2Y8skxuiNS-yTQ8kPw2SdnFbzV555ks5cDh5jwA%3D%3D)
+--> il faut créer un répertoire /data/db dans le C:
+source : https://stackoverflow.com/questions/8029064/new-to-mongodb-can-not-run-command-mongo
