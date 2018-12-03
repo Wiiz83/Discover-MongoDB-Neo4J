@@ -2,7 +2,7 @@
 
 ## Installation de MongoDB
 
-Nous avons téléchargé puis installé la version “Community Server” sur nos PC en local. Nous avons également installé Robo 3T, un logiciel qui propose une interface graphique pour requêter notre base MongoDB (MongoDB Compass ne propose pas cette fonctionnalité). 
+Nous avons téléchargé puis installé la version “Community Server” sur nos PC en local. Nous avons également installé Robo 3T, un logiciel qui propose une interface graphique pour requêter notre base MongoDB (MongoDB Compass ne propose pas cette fonctionnalité). Lancement du serveur MongoDB avec la commande : C:\mongodb-win32-x86_64-2008plus-ssl-4.0.4\bin>mongod
 
 Tutoriel d'installation : https://docs.mongodb.com/manual/tutorial/install-mongodb-on-windows/ 
 
