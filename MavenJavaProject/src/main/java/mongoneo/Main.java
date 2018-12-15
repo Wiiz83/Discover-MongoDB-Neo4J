@@ -76,14 +76,35 @@ public class Main {
     index
     */
     public static void creerDatastoreMongoDB(){
+        String NomBaseMongo = "dbDocuments";
+        String NomCollectionMongo = "index";
+        boolean exist = false;
         
-        // vérifier si la base n'existe pas déjà
+        // vérifier si la base et la collection n'existe pas déjà
+        for (String bdName : mongodb.mongoClient.listDatabaseNames()) {
+            if (bdName.equals(NomBaseMongo)) { // On a reconnu la base de données dans MongoDB
+                for (String collectionName : mongodb.mongoClient.getDatabase(NomBaseMongo).listCollectionNames()) {
+                    if (collectionName.equals(NomCollectionMongo)) { // On a reconnu la collection dans MongoDB
+                        exist = true;
+                    }
+                }
+            }
+        }
+
+        // si la base et la collection n'existe pas déjà
+        if(exist == true){
+            System.out.println(RED + "La collection MongoDB '" + MONGO_DB_COLLECTION_INDEX + "' existe déjà !" + RESET);
+            reponse = getReponseUtilisateur("Voulez-vous supprimer la collection existante (Y/N) ? ");
+            isCreate = reponse.toUpperCase().equals("Y");
+        } 
         
         // si elle n'existe pas, on crée la base dbDocuments
+        else {
+            
+        }
         
-        // sinon on l'utilise
-        
-        // vérifier si la collection existe 
+
+ 
         
         // si existe, on supprime et on recréer (index) + insere 
         

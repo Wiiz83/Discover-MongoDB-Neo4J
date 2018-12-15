@@ -14,7 +14,7 @@ import org.neo4j.driver.v1.GraphDatabase;
  */
 public class Neo4J {
     
-    private final Driver driver;
+    public final Driver driver;
     
     public Neo4J(){
         driver = GraphDatabase.driver("bolt://localhost:7687");

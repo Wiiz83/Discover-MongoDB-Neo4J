@@ -17,12 +17,12 @@ import org.bson.Document;
  */
 public class MongoDB {
     
-    private MongoDatabase currentDatabaseName;
-    private MongoCollection<Document> currentCollectionName;
-    private MongoClient mongoClient;
+    public MongoDatabase currentDatabaseName;
+    public MongoCollection<Document> currentCollectionName;
+    public final MongoClient mongoClient;
     
     public MongoDB(){
-        mongoClient = new MongoClient(new MongoClientURI("mongodb://127.0.0.1:27017"));
+        mongoClient = new MongoClient(new MongoClientURI("mongodb://localhost:27017"));
     }
     
     public void getDatabase(String nom) throws Exception {
