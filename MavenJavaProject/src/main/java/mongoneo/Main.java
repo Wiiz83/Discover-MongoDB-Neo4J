@@ -1,5 +1,6 @@
 package mongoneo;
 
+import com.mongodb.client.FindIterable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Scanner;
@@ -155,8 +156,37 @@ public class Main {
     }
     
     public static void rechercheDocumentsAvancee(){
+        String NomBaseMongo = "dbDocuments";
+        String NomCollectionMongo = "indexInverse";
+        boolean exist = false;
         
+        String reponse = getReponseUtilisateur("Quel listes de mots-clés souhaitez vous rechercher (séparer les mots-clés par une ',') ?\n");
+        String[] motsCles = tokenToArray(new StringTokenizer(reponse, ","));
+        System.out.println("Liste des mots-clés recherchés : " + Arrays.toString(motsCles));
+
+        mongodb.getDatabase(nom);
+        mongodb.currentCollectionName = mongodb.currentDatabaseName.getCollection(NomCollectionMongo);            
+        FindIterable<Document> documents = mongodb.currentCollectionName.aggregate("{$match:{mot:{$in:"+Arrays.toString(motsCles)+"}}}"
+                + "{$unwind:\"$documents\"}"
+                + "{$group:{_id:\"$documents\",nb_correspondances:{$sum:1}}}"
+                + "{$sort:{nb_correspondances:-1}}"
+                + "{$limit:10}");
+
+        if (documents == null) {
+            System.out.println(RED + "Aucun article ne correspond à la liste de mots-clés !" + RESET);
+        } else {
+            for (Document d : documents) {
+                resultatRqt = session.run("MATCH (a :Article) \n"
+                        + "WHERE ID(a) = " + d.get("_id") + "\n"
+                        + "RETURN a.titre AS titre");
+                titre = resultatRqt.next().get("titre");
+                if (!titre.isNull()) {
+                    System.out.println(d.get("nb_correspondances") + " mots-clés en commun\t- " + titre.asString());
+                }
+            }
+        }
     }
+  
     
     public static void quitterApplication(){
         mongodb.closeConnection();
