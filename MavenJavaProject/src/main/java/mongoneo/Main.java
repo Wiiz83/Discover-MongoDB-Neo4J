@@ -135,11 +135,88 @@ public class Main {
     }
     
     public static void creerStructureMiroir(){
+        String reponse;             // Réponse de l'utilisateur
+        boolean isCreate = true;    // True si l'on créé la BD MongoDB, false sinon
+
+        /* MongoBD */
+        MongoDatabase mongoDB;                  // La base de données MongoDB
+        MongoCollection<Document> mongoIndex, // La collection MongoDB de base
+                mongoMiroir;                    // La collection MongoDB miroir
+
+        if (isCollectionExist(mongoClient, "dbDocuments", "indexInverse")) {
+            System.out.println(RED + "La Collection MongoDB 'indexInverse' existe déjà !");
+            reponse = getReponseUtilisateur("Voulez-vous supprimer la collection existante (Y/N) ? ");
+            isCreate = reponse.toUpperCase().equals("Y");
+        }
+
+        if (isCreate) {
+            System.out.println("Mise à jour de la structure miroir. Veuillez patienter.");
+            mongoDB = mongoClient.getDatabase("dbDocuments");
+            mongoIndex = mongoDB.getCollection("index");
+            mongoMiroir = mongoDB.getCollection("indexInverse");
+            mongoMiroir.drop(); // On supprime uniquement la collection miroir
+
+            for (Document doc : mongoIndex.find()) {
+                for (String motCle : (List<String>) doc.get("motsCles")) {
+                    Document d = mongoMiroir.find(Filters.eq("mot", motCle)).first();
+                    if (d == null) {
+                        mongoMiroir.insertOne(Document.parse("{mot: \"" + motCle
+                                + "\", documents : [" + doc.getInteger("idDocument") + "]}"));
+                    } else {
+                        mongoMiroir.updateOne(Filters.eq("_id", d.get("_id")),
+                                Updates.addToSet("documents", doc.getInteger("idDocument")));
+                    }
+                }
+            }
+
+            System.out.println("La structure miroir a été mise à jour !");
+            System.out.println(mongoMiroir.count() + " documents ont été ajoutés !");
+            mongoMiroir.createIndex(Document.parse("{documents : 1}"));
+            System.out.println("Index créé sur la structure miroir !");
+        }
         
     }
     
-    public static void rechercheDocuments(){
-        
+    private static void rechercheDocument(MongoClient mongoClient, Session session) {
+        String motCle;  // Mot clé que l'on doit rechercher
+
+        /* Neo4J */
+        StatementResult resultatRqt;    // La requête pour Neo4J
+        List<Record> records;           // Les résultats de la requête Neo4j
+        Value titre;                    // Le titre d'un article qui contient le mot clé
+
+        /* MongoBD */
+        MongoDatabase mongoDB;                  // La base de données MongoDB
+        MongoCollection<Document> mongoMiroir;  // La collection MongoDB
+        Document document;                      // Le document que l'on ajoute
+        List<Integer> listDocuments;            // Liste des documents qui contiennent le mot clé
+
+        if (!isCollectionExist(mongoClient, "dbDocuments", "indexInverse")) {
+            System.out.println("Il faut d'abord créer une structure miroir");
+        } else {
+            motCle = getReponseUtilisateur("Mot-clé à rechercher ? ");
+            mongoDB = mongoClient.getDatabase("dbDocuments");
+            mongoMiroir = mongoDB.getCollection("indexInverse");
+            document = mongoMiroir.find(Filters.eq("mot", motCle)).first();
+
+            if (document == null) {
+                System.out.println("Le mot-clé '" + motCle + "' n'existe pas dans la base !");
+            } else {
+                listDocuments = (List<Integer>) document.get("documents");
+                resultatRqt = session.run("MATCH (a :Article) \n"
+                        + "WHERE ID(a) IN " + Arrays.toString(listDocuments.toArray()) + "\n"
+                        + "RETURN a.titre AS titre\n"
+                        + "ORDER BY titre ASC");
+                records = resultatRqt.list();
+                System.out.println("Liste des titres en lien avec le mot-clé '" + motCle + "' : " + records.size() + " articles");
+                for (Record record : records) {
+                    titre = record.get("titre");
+                    if (!titre.isNull()) {
+                        System.out.println("\t- " + titre.asString());
+                    }
+                }
+            }
+        }
     }
     
     public static void rechercheAuteursDePlusArticles(){
