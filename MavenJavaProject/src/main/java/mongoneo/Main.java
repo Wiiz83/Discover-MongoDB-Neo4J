@@ -177,7 +177,7 @@ public class Main {
         
     }
     
-    private static void rechercheDocument(MongoClient mongoClient, Session session) {
+    private static void rechercheDocuments() {
         String motCle;  // Mot clé que l'on doit rechercher
 
         /* Neo4J */
@@ -232,17 +232,22 @@ public class Main {
         }
     }
     
-    public static void rechercheDocumentsAvancee(){
-        String NomBaseMongo = "dbDocuments";
-        String NomCollectionMongo = "indexInverse";
-        boolean exist = false;
+    public static void rechercheDocumentsAvancee() throws Exception{
+        // séléction de la base et de la collection MongoDB à utiliser
+        mongodb.getDatabase("dbDocuments");
+        mongodb.currentCollectionName = mongodb.currentDatabaseName.getCollection("indexInverse");  
         
-        String reponse = getReponseUtilisateur("Quel listes de mots-clés souhaitez vous rechercher (séparer les mots-clés par une ',') ?\n");
-        String[] motsCles = tokenToArray(new StringTokenizer(reponse, ","));
-        System.out.println("Liste des mots-clés recherchés : " + Arrays.toString(motsCles));
+        // récupération des mots clés à rechercher 
+        Scanner scanner = new Scanner(System.in);
+        String s = cliUtils.saisirChaine(scanner, "Quels sont les mot-clés que vous souhaitez rechercher ? Exemple : 'with, systems, new'");
+        StringTokenizer token = new StringTokenizer(s,",");
+        String[] motsCles = new String[token.countTokens()];
+        for (int i = 0, n = motsCles.length; i < n; i++) {
+            motsCles[i] = "\"" + token.nextToken().trim() + "\"";
+        }
+        
 
-        mongodb.getDatabase(nom);
-        mongodb.currentCollectionName = mongodb.currentDatabaseName.getCollection(NomCollectionMongo);            
+                  
         FindIterable<Document> documents = mongodb.currentCollectionName.aggregate("{$match:{mot:{$in:"+Arrays.toString(motsCles)+"}}}"
                 + "{$unwind:\"$documents\"}"
                 + "{$group:{_id:\"$documents\",nb_correspondances:{$sum:1}}}"
@@ -253,9 +258,7 @@ public class Main {
             System.out.println(RED + "Aucun article ne correspond à la liste de mots-clés !" + RESET);
         } else {
             for (Document d : documents) {
-                resultatRqt = session.run("MATCH (a :Article) \n"
-                        + "WHERE ID(a) = " + d.get("_id") + "\n"
-                        + "RETURN a.titre AS titre");
+                resultatRqt = session.run("MATCH (a :Article) WHERE ID(a) = " + d.get("_id") + "RETURN a.titre AS titre");
                 titre = resultatRqt.next().get("titre");
                 if (!titre.isNull()) {
                     System.out.println(d.get("nb_correspondances") + " mots-clés en commun\t- " + titre.asString());
