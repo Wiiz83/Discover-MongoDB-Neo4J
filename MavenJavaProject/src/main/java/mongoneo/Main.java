@@ -24,9 +24,6 @@ public class Main {
     private static CLIUtils cliUtils;
     private static Driver driver;
     private static MongoClient mongoClient;
-    
-    private static MongoDatabase currentDatabaseName;
-    private static MongoCollection<Document> currentCollectionName;
 
     public static void main(String[] args) {
         try {
@@ -91,60 +88,37 @@ public class Main {
         }
     }
 
-    /*
-    Sur la base des articles disponibles dans Neo4J, écrire une méthode permettant de
-    construire une base de documents MongoDB qui va créer pour chaque article dans
-    Neo4J un document ayant le format suivant dans une nouvelle collection nommée
-    index
-     */
     public static void creerDatastoreMongoDB() throws Exception {
-        String NomBaseMongo = "dbDocuments";
-        String NomCollectionMongo = "index";
-        boolean exist = false;
+        // récupération ou création de la base et de la collection appropriées 
+        MongoDatabase mongoDatabase = mongoClient.getDatabase("dbDocuments");
+        MongoCollection<Document> mongoCollection = mongoDatabase.getCollection("index");
 
-        // vérifier si la base et la collection n'existe pas déjà
-        for (String bdName : mongodb.mongoClient.listDatabaseNames()) {
-            if (bdName.equals(NomBaseMongo)) { // On a reconnu la base de données dans MongoDB
-                for (String collectionName : mongodb.mongoClient.getDatabase(NomBaseMongo).listCollectionNames()) {
-                    if (collectionName.equals(NomCollectionMongo)) { // On a reconnu la collection dans MongoDB
-                        exist = true;
+        // pour chaque article dans la base neo4j, on créé et on insère un document dans la collection mongodb
+        try (Session session = driver.session()) {
+            StatementResult resultat = session.run("MATCH (a:Article) RETURN a.titre AS titre, ID(a) AS id");
+            Record record;
+            while (resultat.hasNext()) {
+                record = resultat.next();
+                if (!record.get("titre").isNull() && !record.get("id").isNull()) {
+                    StringTokenizer token = new StringTokenizer(record.get("titre").asString().toLowerCase(), " ,-:;.()+[]{}?'");
+                    String[] motsCles = new String[token.countTokens()];
+                    for (int i = 0, n = motsCles.length; i < n; i++) {
+                        motsCles[i] = "\"" + token.nextToken().trim() + "\"";
                     }
-                }
-            }
-        }
-
-        // si la base et la collection n'existe pas déjà
-        if (exist == true) {
-            /*
-            System.out.println(RED + "La collection MongoDB '" + MONGO_DB_COLLECTION_INDEX + "' existe déjà !" + RESET);
-            reponse = getReponseUtilisateur("Voulez-vous supprimer la collection existante (Y/N) ? ");
-            isCreate = reponse.toUpperCase().equals("Y");
-             */
-        } // si elle n'existe pas, on crée la base dbDocuments
-        else {
-            mongodb.getDatabase(NomBaseMongo);
-            mongodb.currentCollectionName = mongodb.currentDatabaseName.getCollection(NomCollectionMongo);
-
-            try (Session session = neo4j.driver.session()) {
-                StatementResult resultatRqt = session.run("MATCH (a:Article) RETURN a.titre AS titre, ID(a) AS id");
-                while (resultatRqt.hasNext()) {
-                    Record rec = resultatRqt.next();
-                    if (!rec.get("titre").isNull() && !rec.get("id").isNull()) {
-                        StringTokenizer token = new StringTokenizer(rec.get("titre").asString().toLowerCase(), " ,-:;.()+[]{}?'");
-                        String[] motsCles = new String[token.countTokens()];
-                        for (int i = 0, n = motsCles.length; i < n; i++) {
-                            motsCles[i] = "\"" + token.nextToken().trim() + "\"";
-                        }
-                        Document document = Document.parse("{idDocument : " + rec.get("id").asInt() + ",motsCles : " + Arrays.toString(motsCles) + "}");
-                        mongodb.currentCollectionName.insertOne(document);
-                    }
+                    Document document = Document.parse("{idDocument : "+record.get("id").asInt()+",motsCles : "+Arrays.toString(motsCles)+"}");
+                    mongoCollection.insertOne(document);
                 }
             }
         }
     }
 
     public static void creerIndexMotsClesMongoDB() {
-        mongodb.currentCollectionName.createIndex(Document.parse("{motsCles : 1}"));
+        // récupération ou création de la base et de la collection appropriées 
+        MongoDatabase mongoDatabase = mongoClient.getDatabase("dbDocuments");
+        MongoCollection<Document> mongoCollection = mongoDatabase.getCollection("index");
+        
+        // mise en place de l'index (ensureIndex) sur le tableau nommé motClés dans MongoDB
+        mongoCollection.createIndex(Document.parse("{motsCles : 1}"));
     }
 
     public static void creerStructureMiroir() {
@@ -233,8 +207,9 @@ public class Main {
     }
 
     public static void rechercheAuteursDePlusArticles() {
-        try (Session session = neo4j.driver.session()) {
-            StatementResult result = session.run("MATCH (au :Auteur)-[e :Ecrire]->(:Article) RETURN au.nom AS nom, count(e) AS nb_articles ORDER BY nb_articles DESC, nom ASC LIMIT 10");
+        // récupérer les 10 auteurs ayant écrit le plus d’articles
+        try (Session session = driver.session()) {
+            StatementResult result = session.run("MATCH (au:Auteur)-[e:Ecrire]->(a:Article) RETURN au.nom AS nom, count(e) AS nb_articles ORDER BY nb_articles DESC, nom ASC LIMIT 10");
             Record record;
             while (result.hasNext()) {
                 record = result.next();
@@ -256,9 +231,9 @@ public class Main {
         }
 
         // rechercher les 10 premiers documents sur la structure miroir MongoDB qui possèdent les mot-clés 
-        mongodb.getDatabase("dbDocuments");
-        mongodb.currentCollectionName = mongodb.currentDatabaseName.getCollection("indexInverse");
-        AggregateIterable<Document> documents = mongodb.currentCollectionName.aggregate(Arrays.asList(
+        MongoDatabase mongoDatabase = mongoClient.getDatabase("dbDocuments");
+        MongoCollection<Document> mongoCollection = mongoDatabase.getCollection("indexInverse");
+        AggregateIterable<Document> documents = mongoCollection.aggregate(Arrays.asList(
                 Document.parse("{$match:{mot:{$in:" + Arrays.toString(motsCles) + "}}}"),
                 Document.parse("{$unwind:\"$documents\"}"),
                 Document.parse("{$group:{_id :\"$documents\",nb_correspondances:{$sum:1}}}"),
@@ -267,7 +242,7 @@ public class Main {
 
         // pour chaque documents, récupérer le titre de l'article correspondant au document en cours 
         StatementResult result;
-        try (Session session = neo4j.driver.session()) {
+        try (Session session = driver.session()) {
             for (Document d : documents) {
                 result = session.run("MATCH (a:Article) WHERE ID(a) = "+d.get("_id")+"RETURN a.titre AS titre");
                 if (!result.next().get("titre").isNull()) {
